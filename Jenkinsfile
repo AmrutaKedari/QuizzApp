@@ -50,10 +50,10 @@ spec:
     }
 
     environment {
-        APP_NAME        = "your-app-name"
+        APP_NAME        = "quizapp"
         IMAGE_TAG       = "latest"
         REGISTRY_URL    = "nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085"
-        REGISTRY_REPO   = "project-namespace"
+        REGISTRY_REPO   = "quizapp"
         SONAR_PROJECT   = "sonar-project-key"
         SONAR_HOST_URL  = "http://my-sonarqube-sonarqube.sonarqube.svc.cluster.local:9000"
     }
