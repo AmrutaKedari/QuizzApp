@@ -72,10 +72,16 @@ spec:
             }
         }
 
-        stage('Run Tests in Docker') {
-            steps {
-                echo "Skipping tests (no test cases yet)"
-                    }
+        stage('Run Tests') {
+        steps {
+            container('dind') {
+            sh '''
+            docker run --rm quizapp:latest \
+            pytest --maxfail=1 --disable-warnings \
+            --cov=. --cov-report=xml
+            '''
+                }
+            }
         }
 
 
