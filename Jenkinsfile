@@ -73,16 +73,16 @@ spec:
         }
 
         stage('Run Tests') {
-        steps {
+            steps {
             container('dind') {
             sh '''
             docker run --rm quizapp:latest \
             pytest --maxfail=1 --disable-warnings \
             --cov=. --cov-report=xml
             '''
-                }
-            }
         }
+    }
+}
 
 
         stage('SonarQube Analysis') {
