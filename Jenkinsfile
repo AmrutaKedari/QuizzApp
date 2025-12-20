@@ -55,7 +55,7 @@ spec:
         REGISTRY_URL    = "nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085"
         REGISTRY_REPO   = "project-namespace"
         SONAR_PROJECT   = "sonar-project-key"
-        SONAR_HOST_URL = "http://my-sonarqube-sonarqube.sonarqube.svc.cluster.local:9000"
+        SONAR_HOST_URL  = "http://my-sonarqube-sonarqube.sonarqube.svc.cluster.local:9000"
     }
 
     stages {
@@ -87,7 +87,7 @@ spec:
             steps {
                 container('sonar-scanner') {
                     withCredentials([
-                        string(credentialsId: '', variable: 'SONAR_TOKEN')
+                        string(credentialsId: 'sonarqube_2401094', variable: 'SONAR_TOKEN')
                     ]) {
                         sh '''
                             sonar-scanner \
@@ -101,16 +101,25 @@ spec:
             }
         }
 
-       stage('Login to Docker Registry') {
+        stage('Login to Nexus Docker Registry') {
             steps {
                 container('dind') {
-                    sh 'docker --version'
-                    sh 'sleep 10'
-                    sh 'docker login nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085 -u admin -p Changeme@2025'
+                    withCredentials([
+                        usernamePassword(
+                            credentialsId: 'nexus-2401094',
+                            usernameVariable: 'NEXUS_USER',
+                            passwordVariable: 'NEXUS_PASS'
+                        )
+                    ]) {
+                        sh '''
+                            docker login $REGISTRY_URL \
+                              -u $NEXUS_USER \
+                              -p $NEXUS_PASS
+                        '''
+                    }
                 }
             }
         }
-
 
         stage('Build - Tag - Push Image') {
             steps {
@@ -141,5 +150,3 @@ spec:
         }
     }
 }
-
-
