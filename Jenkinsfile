@@ -89,13 +89,21 @@ spec:
         stage('Run Tests & Coverage') {
             steps {
                 container('dind') {
-                    sh '''
-                    pip install -r requirements.txt
-                    pytest --cov=quiz --cov=account --cov=base --cov-report=xml
-                    '''
+                sh '''
+                    docker run --rm \
+                    -v $(pwd):/workspace \
+                    -w /workspace \
+                    $APP_NAME:$IMAGE_TAG \
+                    pytest \
+                        --cov=quiz \
+                        --cov=account \
+                        --cov=base \
+                        --cov-report=xml
+                '''
         }
     }
 }
+
 
 
         stage('SonarQube Analysis') {
