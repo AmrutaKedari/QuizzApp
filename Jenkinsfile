@@ -54,7 +54,8 @@ spec:
                         python --version
                         pip install --upgrade pip
                         pip install -r requirements.txt
-                        pytest --cov=quizapp --cov-report=xml
+                        pytest --cov=. --cov-report=xml
+
                     '''
                 }
             }
