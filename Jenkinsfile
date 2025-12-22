@@ -74,16 +74,18 @@ spec:
 
         stage('Run Tests') {
             steps {
-            container('dind') {
-            sh '''
-            docker run --rm quizapp:latest \
-            pytest --maxfail=1 --disable-warnings \
-            --cov=. --cov-report=xml
-            '''
+                container('dind') {
+                    sh '''
+                        docker run --rm \
+                          -v $PWD:/app \
+                          -w /app \
+                          $APP_NAME:$IMAGE_TAG \
+                          pytest --maxfail=1 --disable-warnings \
+                          --cov=. --cov-report=xml
+                    '''
+                }
+            }
         }
-    }
-}
-
 
         stage('SonarQube Analysis') {
             steps {
@@ -96,6 +98,7 @@ spec:
                               -Dsonar.projectKey=$SONAR_PROJECT \
                               -Dsonar.host.url=$SONAR_HOST_URL \
                               -Dsonar.login=$SONAR_TOKEN \
+                              -Dsonar.sources=. \
                               -Dsonar.python.coverage.reportPaths=coverage.xml
                         '''
                     }
@@ -131,7 +134,6 @@ spec:
                           $REGISTRY_URL/$REGISTRY_REPO/$APP_NAME:$IMAGE_TAG
 
                         docker push $REGISTRY_URL/$REGISTRY_REPO/$APP_NAME:$IMAGE_TAG
-                        docker pull $REGISTRY_URL/$REGISTRY_REPO/$APP_NAME:$IMAGE_TAG
                         docker images
                     '''
                 }
