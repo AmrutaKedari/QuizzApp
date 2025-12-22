@@ -12,20 +12,6 @@ spec:
     command: ["cat"]
     tty: true
 
-  - name: kubectl
-    image: bitnami/kubectl:latest
-    command: ["cat"]
-    tty: true
-    securityContext:
-      runAsUser: 0
-    env:
-    - name: KUBECONFIG
-      value: /kube/config
-    volumeMounts:
-    - name: kubeconfig-secret
-      mountPath: /kube/config
-      subPath: kubeconfig
-
   - name: dind
     image: docker:dind
     securityContext:
@@ -33,8 +19,6 @@ spec:
     env:
     - name: DOCKER_TLS_CERTDIR
       value: ""
-    command: ["dockerd-entrypoint.sh"]
-    args: ["--host=tcp://0.0.0.0:2375"]
 '''
         }
     }
@@ -42,8 +26,9 @@ spec:
     environment {
         APP_NAME       = "quizapp"
         IMAGE_TAG      = "latest"
-        REGISTRY_URL   = "nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085"
-        REGISTRY_REPO  = "quizapp"
+
+        REGISTRY_URL  = "nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085"
+        REGISTRY_REPO = "quizapp"
 
         SONAR_PROJECT  = "quizapp"
         SONAR_HOST_URL = "http://my-sonarqube-sonarqube.sonarqube.svc.cluster.local:9000"
@@ -62,10 +47,7 @@ spec:
                 container('dind') {
                     sh '''
                         pip install -r requirements.txt
-                        pytest \
-                          --cov=quizapp \
-                          --cov-report=xml \
-                          --disable-warnings
+                        pytest --cov=quizapp --cov-report=xml
                     '''
                 }
             }
@@ -74,10 +56,7 @@ spec:
         stage('Verify Coverage File') {
             steps {
                 container('dind') {
-                    sh '''
-                        echo "Checking coverage.xml..."
-                        ls -l coverage.xml
-                    '''
+                    sh 'ls -l coverage.xml'
                 }
             }
         }
@@ -140,17 +119,6 @@ spec:
                           $REGISTRY_URL/$REGISTRY_REPO/$APP_NAME:$IMAGE_TAG
 
                         docker push $REGISTRY_URL/$REGISTRY_REPO/$APP_NAME:$IMAGE_TAG
-                    '''
-                }
-            }
-        }
-
-        stage('Deploy to Kubernetes') {
-            steps {
-                container('kubectl') {
-                    sh '''
-                        kubectl apply -f k8s-deployment/deployment.yaml
-                        kubectl rollout status deployment/quizapp -n <NAMESPACE>
                     '''
                 }
             }
