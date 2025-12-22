@@ -86,6 +86,17 @@ spec:
                 }
             }
         }
+        stage('Run Tests & Coverage') {
+            steps {
+                container('dind') {
+                    sh '''
+                    pip install -r requirements.txt
+                    pytest --cov=quiz --cov=account --cov=base --cov-report=xml
+                    '''
+        }
+    }
+}
+
 
         stage('SonarQube Analysis') {
             steps {
