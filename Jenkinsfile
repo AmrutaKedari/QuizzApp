@@ -7,6 +7,11 @@ kind: Pod
 spec:
   containers:
 
+  - name: python
+    image: python:3.11-slim
+    command: ["cat"]
+    tty: true
+
   - name: sonar-scanner
     image: sonarsource/sonar-scanner-cli
     command: ["cat"]
@@ -44,8 +49,10 @@ spec:
 
         stage('Install Dependencies & Run Tests') {
             steps {
-                container('dind') {
+                container('python') {
                     sh '''
+                        python --version
+                        pip install --upgrade pip
                         pip install -r requirements.txt
                         pytest --cov=quizapp --cov-report=xml
                     '''
@@ -55,7 +62,7 @@ spec:
 
         stage('Verify Coverage File') {
             steps {
-                container('dind') {
+                container('python') {
                     sh 'ls -l coverage.xml'
                 }
             }
@@ -85,7 +92,6 @@ spec:
                 container('dind') {
                     sh '''
                         docker build -t $APP_NAME:$IMAGE_TAG .
-                        docker images
                     '''
                 }
             }
@@ -117,7 +123,6 @@ spec:
                     sh '''
                         docker tag $APP_NAME:$IMAGE_TAG \
                           $REGISTRY_URL/$REGISTRY_REPO/$APP_NAME:$IMAGE_TAG
-
                         docker push $REGISTRY_URL/$REGISTRY_REPO/$APP_NAME:$IMAGE_TAG
                     '''
                 }
