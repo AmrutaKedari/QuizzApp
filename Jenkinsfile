@@ -6,6 +6,7 @@ apiVersion: v1
 kind: Pod
 spec:
   containers:
+
   - name: sonar-scanner
     image: sonarsource/sonar-scanner-cli
     command: ["cat"]
@@ -17,7 +18,6 @@ spec:
     tty: true
     securityContext:
       runAsUser: 0
-      readOnlyRootFilesystem: false
     env:
     - name: KUBECONFIG
       value: /kube/config
@@ -33,38 +33,78 @@ spec:
     env:
     - name: DOCKER_TLS_CERTDIR
       value: ""
-    volumeMounts:
-    - name: docker-config
-      mountPath: /etc/docker/daemon.json
-      subPath: daemon.json
-
-  volumes:
-  - name: docker-config
-    configMap:
-      name: docker-daemon-config
-  - name: kubeconfig-secret
-    secret:
-      secretName: kubeconfig-secret
+    command: ["dockerd-entrypoint.sh"]
+    args: ["--host=tcp://0.0.0.0:2375"]
 '''
         }
     }
 
     environment {
-        APP_NAME        = "quizapp"
-        IMAGE_TAG       = "latest"
-        REGISTRY_URL    = "nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085"
-        REGISTRY_REPO   = "quizapp"
-        SONAR_PROJECT   = "sonar-project-key"
-        SONAR_HOST_URL  = "http://my-sonarqube-sonarqube.sonarqube.svc.cluster.local:9000"
+        APP_NAME       = "quizapp"
+        IMAGE_TAG      = "latest"
+        REGISTRY_URL   = "nexus-service-for-docker-hosted-registry.nexus.svc.cluster.local:8085"
+        REGISTRY_REPO  = "quizapp"
+
+        SONAR_PROJECT  = "quizapp"
+        SONAR_HOST_URL = "http://my-sonarqube-sonarqube.sonarqube.svc.cluster.local:9000"
     }
 
     stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Install Dependencies & Run Tests') {
+            steps {
+                container('dind') {
+                    sh '''
+                        pip install -r requirements.txt
+                        pytest \
+                          --cov=quizapp \
+                          --cov-report=xml \
+                          --disable-warnings
+                    '''
+                }
+            }
+        }
+
+        stage('Verify Coverage File') {
+            steps {
+                container('dind') {
+                    sh '''
+                        echo "Checking coverage.xml..."
+                        ls -l coverage.xml
+                    '''
+                }
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                container('sonar-scanner') {
+                    withCredentials([
+                        string(credentialsId: 'sonarqube_2401094', variable: 'SONAR_TOKEN')
+                    ]) {
+                        sh '''
+                            sonar-scanner \
+                              -Dsonar.projectKey=quizapp \
+                              -Dsonar.host.url=$SONAR_HOST_URL \
+                              -Dsonar.login=$SONAR_TOKEN \
+                              -Dsonar.sources=quizapp \
+                              -Dsonar.python.coverage.reportPaths=coverage.xml
+                        '''
+                    }
+                }
+            }
+        }
 
         stage('Build Docker Image') {
             steps {
                 container('dind') {
                     sh '''
-                        sleep 15
                         docker build -t $APP_NAME:$IMAGE_TAG .
                         docker images
                     '''
@@ -72,61 +112,7 @@ spec:
             }
         }
 
-        stage('Run Tests') {
-            steps {
-                container('dind') {
-                    sh '''
-                        docker run --rm \
-                          -v $PWD:/app \
-                          -w /app \
-                          $APP_NAME:$IMAGE_TAG \
-                          pytest --maxfail=1 --disable-warnings \
-                          --cov=. --cov-report=xml
-                    '''
-                }
-            }
-        }
-        stage('Run Tests & Coverage') {
-            steps {
-                container('dind') {
-                sh '''
-                    docker run --rm \
-                    -v $(pwd):/workspace \
-                    -w /workspace \
-                    $APP_NAME:$IMAGE_TAG \
-                    pytest \
-                        --cov=quiz \
-                        --cov=account \
-                        --cov=base \
-                        --cov-report=xml
-                '''
-        }
-    }
-}
-
-
-
-        stage('SonarQube Analysis') {
-            steps {
-                container('sonar-scanner') {
-                    withCredentials([
-                    string(credentialsId: 'sonarqube_2401094', variable: 'SONAR_TOKEN')
-                ]) {
-                    sh '''
-                        sonar-scanner \
-                        -Dsonar.projectKey=quizapp \
-                        -Dsonar.host.url=$SONAR_HOST_URL \
-                        -Dsonar.login=$SONAR_TOKEN \
-                        -Dsonar.sources=quiz,account,base \
-                        -Dsonar.python.coverage.reportPaths=coverage.xml
-                    '''
-                }
-            }
-        }
-    }
-
-
-        stage('Login to Nexus Docker Registry') {
+        stage('Login to Nexus') {
             steps {
                 container('dind') {
                     withCredentials([
@@ -146,7 +132,7 @@ spec:
             }
         }
 
-        stage('Build - Tag - Push Image') {
+        stage('Tag & Push Image') {
             steps {
                 container('dind') {
                     sh '''
@@ -154,21 +140,18 @@ spec:
                           $REGISTRY_URL/$REGISTRY_REPO/$APP_NAME:$IMAGE_TAG
 
                         docker push $REGISTRY_URL/$REGISTRY_REPO/$APP_NAME:$IMAGE_TAG
-                        docker images
                     '''
                 }
             }
         }
 
-        stage('Deploy Application') {
+        stage('Deploy to Kubernetes') {
             steps {
                 container('kubectl') {
-                    dir('k8s-deployment') {
-                        sh '''
-                            kubectl apply -f deployment.yaml
-                            kubectl rollout status deployment/$APP_NAME -n <NAMESPACE>
-                        '''
-                    }
+                    sh '''
+                        kubectl apply -f k8s-deployment/deployment.yaml
+                        kubectl rollout status deployment/quizapp -n <NAMESPACE>
+                    '''
                 }
             }
         }
