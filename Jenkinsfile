@@ -91,20 +91,21 @@ spec:
             steps {
                 container('sonar-scanner') {
                     withCredentials([
-                        string(credentialsId: 'sonarqube_2401094', variable: 'SONAR_TOKEN')
-                    ]) {
-                        sh '''
-                            sonar-scanner \
-                              -Dsonar.projectKey=$SONAR_PROJECT \
-                              -Dsonar.host.url=$SONAR_HOST_URL \
-                              -Dsonar.login=$SONAR_TOKEN \
-                              -Dsonar.sources=. \
-                              -Dsonar.python.coverage.reportPaths=coverage.xml
-                        '''
-                    }
+                    string(credentialsId: 'sonarqube_2401094', variable: 'SONAR_TOKEN')
+                ]) {
+                    sh '''
+                        sonar-scanner \
+                        -Dsonar.projectKey=quizapp \
+                        -Dsonar.host.url=$SONAR_HOST_URL \
+                        -Dsonar.login=$SONAR_TOKEN \
+                        -Dsonar.sources=quiz,account,base \
+                        -Dsonar.python.coverage.reportPaths=coverage.xml
+                    '''
                 }
             }
         }
+    }
+
 
         stage('Login to Nexus Docker Registry') {
             steps {
