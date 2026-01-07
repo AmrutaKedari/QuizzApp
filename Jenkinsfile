@@ -17,13 +17,23 @@ spec:
     command: ["cat"]
     tty: true
 
-  - name: dind
-    image: docker:dind
-    securityContext:
-      privileged: true
-    env:
-    - name: DOCKER_TLS_CERTDIR
-      value: ""
+  - name: kaniko
+    image: gcr.io/kaniko-project/executor:latest
+    args:
+      - "--dockerfile=Dockerfile"
+      - "--context=/workspace"
+      - "--destination=${REGISTRY_URL}/${REGISTRY_REPO}/${APP_NAME}:${IMAGE_TAG}"
+      - "--skip-tls-verify"
+    volumeMounts:
+      - name: kaniko-secret
+        mountPath: /kaniko/.docker/
+  volumes:
+    - name: kaniko-secret
+      secret:
+        secretName: regcred
+        items:
+          - key: .dockerconfigjson
+            path: config.json
 '''
         }
     }
@@ -55,7 +65,6 @@ spec:
                         pip install --upgrade pip
                         pip install -r requirements.txt
                         pytest --cov=. --cov-report=xml
-
                     '''
                 }
             }
@@ -88,43 +97,11 @@ spec:
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Build & Push Image (Kaniko)') {
             steps {
-                container('dind') {
+                container('kaniko') {
                     sh '''
-                        docker build -t $APP_NAME:$IMAGE_TAG .
-                    '''
-                }
-            }
-        }
-
-        stage('Login to Nexus') {
-            steps {
-                container('dind') {
-                    withCredentials([
-                        usernamePassword(
-                            credentialsId: 'nexus-2401094',
-                            usernameVariable: 'NEXUS_USER',
-                            passwordVariable: 'NEXUS_PASS'
-                        )
-                    ]) {
-                        sh '''
-                            docker login $REGISTRY_URL \
-                              -u $NEXUS_USER \
-                              -p $NEXUS_PASS
-                        '''
-                    }
-                }
-            }
-        }
-
-        stage('Tag & Push Image') {
-            steps {
-                container('dind') {
-                    sh '''
-                        docker tag $APP_NAME:$IMAGE_TAG \
-                          $REGISTRY_URL/$REGISTRY_REPO/$APP_NAME:$IMAGE_TAG
-                        docker push $REGISTRY_URL/$REGISTRY_REPO/$APP_NAME:$IMAGE_TAG
+                        echo "Building & pushing image using Kaniko..."
                     '''
                 }
             }
